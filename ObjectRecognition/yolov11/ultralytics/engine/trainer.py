@@ -306,7 +306,7 @@ class BaseTrainer:
 
         # Check imgsz
         gs = max(int(self.model.stride.max() if hasattr(self.model, "stride") else 32), 32)  # grid size (max stride)
-        self.args.imgsz = check_imgsz(self.args.imgsz, stride=gs, floor=gs, max_dim=1)
+        self.args.imgsz = check_imgsz(self.args.imgsz, stride=gs, floor=gs, max_dim=2)
         self.stride = gs  # for multiscale training
 
         # Batch size
@@ -322,7 +322,8 @@ class BaseTrainer:
             # Note: When training DOTA dataset, double batch size could get OOM on images with >2000 objects.
             self.test_loader = self.get_dataloader(
                 self.data.get("val") or self.data.get("test"),
-                batch_size=batch_size if self.args.task == "obb" else batch_size * 2,
+                #batch_size=batch_size if self.args.task == "obb" else batch_size * 2,
+                batch_size=batch_size,
                 rank=-1,
                 mode="val",
             )

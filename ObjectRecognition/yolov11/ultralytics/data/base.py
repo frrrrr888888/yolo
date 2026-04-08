@@ -240,13 +240,33 @@ class BaseDataset(Dataset):
                 raise FileNotFoundError(f"Image Not Found {f}")
 
             h0, w0 = im.shape[:2]  # orig hw
-            if rect_mode:  # resize long side to imgsz while maintaining aspect ratio
-                r = self.imgsz / max(h0, w0)  # ratio
-                if r != 1:  # if sizes are not equal
-                    w, h = (min(math.ceil(w0 * r), self.imgsz), min(math.ceil(h0 * r), self.imgsz))
-                    im = cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
-            elif not (h0 == w0 == self.imgsz):  # resize by stretching image to square imgsz
-                im = cv2.resize(im, (self.imgsz, self.imgsz), interpolation=cv2.INTER_LINEAR)
+            r = 0 # orig r
+            if isinstance(self.imgsz, int):
+                if rect_mode:  # resize long side to imgsz while maintaining aspect ratio
+
+                    r = self.imgsz / max(h0, w0)
+
+                    if r != 1 :  # if sizes are not equal
+                        w, h = (min(math.ceil(w0 * r), self.imgsz), min(math.ceil(h0 * r), self.imgsz))
+                        im = cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
+                elif not (h0 == w0 == self.imgsz):  # resize by stretching image to square imgsz
+                    im = cv2.resize(im, (self.imgsz, self.imgsz), interpolation=cv2.INTER_LINEAR)
+
+            elif isinstance(self.imgsz, list):
+                if rect_mode:
+
+                    rh = self.imgsz[0] / max(h0, w0)
+                    rw = self.imgsz[1] / max(h0, w0)
+                    r = max(rh, rw)
+
+                    if r != 1:  # if sizes are not equal
+                        w, h = (min(math.ceil(w0 * r), self.imgsz[1]), min(math.ceil(h0 * r), self.imgsz[0]))
+                        im = cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
+                elif not (h0 == self.imgsz[1] and w0 == self.imgsz[0]):  # resize by stretching image to square imgsz
+                    im = cv2.resize(im, (self.imgsz, self.imgsz), interpolation=cv2.INTER_LINEAR)
+            else:
+                # 非法类型 → 主动报错并终止程序
+                raise TypeError(f"imgsz 必须是 int 或 list 类型，当前传入类型：{type(self.imgsz)}")
             if im.ndim == 2:
                 im = im[..., None]
 

@@ -541,7 +541,18 @@ class Mosaic(BaseMixTransform):
         assert n in {4, 9}, "grid must be equal to 4 or 9."
         super().__init__(dataset=dataset, p=p)
         self.imgsz = imgsz
-        self.border = (-imgsz // 2, -imgsz // 2)  # width, height
+        #self.border = (-imgsz // 2, -imgsz // 2)  # width, height
+        #.border = (-imgsz[0] // 2, -imgsz[1] // 2)  # height, width
+        # 判断 imgsz 类型：只能是 int 或 list，否则报错停止
+        if isinstance(imgsz, int):
+            # 整数：宽高相同
+            self.border = (-imgsz // 2, -imgsz // 2)
+        elif isinstance(imgsz, list):
+            # 列表：使用宽高 [h, w]
+            self.border = (-imgsz[0] // 2, -imgsz[1] // 2)
+        else:
+            # 非法类型 → 主动报错并终止程序
+            raise TypeError(f"imgsz 必须是 int 或 list 类型，当前传入类型：{type(imgsz)}")
         self.n = n
         self.buffer_enabled = self.dataset.cache != "ram"
 
@@ -1690,9 +1701,15 @@ class LetterBox:
             labels = {}
         img = labels.get("img") if image is None else image
         shape = img.shape[:2]  # current shape [height, width]
-        new_shape = labels.pop("rect_shape", self.new_shape)
-        if isinstance(new_shape, int):
-            new_shape = (new_shape, new_shape)
+        #print(self.new_shape)
+        new_shape_0 = labels.pop("rect_shape", self.new_shape)
+        #还没查到原因这里的输出出来的元组在读两个维度的时候会变成（[],[])的元组
+        if isinstance(new_shape_0, int):
+            new_shape = (new_shape_0, new_shape_0)
+        elif isinstance(new_shape_0, tuple) and all(isinstance(i, list) for i in new_shape_0):
+            new_shape = new_shape_0[0]
+        else:
+            new_shape = new_shape_0
 
         # Scale ratio (new / old)
         r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])

@@ -126,7 +126,8 @@ class BaseValidator:
         (self.save_dir / "labels" if self.args.save_txt else self.save_dir).mkdir(parents=True, exist_ok=True)
         if self.args.conf is None:
             self.args.conf = 0.01 if self.args.task == "obb" else 0.001  # reduce OBB val memory usage
-        self.args.imgsz = check_imgsz(self.args.imgsz, max_dim=1)
+        #self.args.imgsz = check_imgsz(self.args.imgsz, max_dim=1)
+        self.args.imgsz = check_imgsz(self.args.imgsz, max_dim=2)
 
         self.plots = {}
         self.callbacks = _callbacks or callbacks.get_default_callbacks()
@@ -193,7 +194,18 @@ class BaseValidator:
             model.eval()
             if self.args.compile:
                 model = attempt_compile(model, device=self.device)
-            model.warmup(imgsz=(1 if pt else self.args.batch, self.data["channels"], imgsz, imgsz))  # warmup
+            #model.warmup(imgsz=(1 if pt else self.args.batch, self.data["channels"], imgsz, imgsz))  # warmup
+
+            # 判断 imgsz 类型：只能是 int 或 list，否则报错停止
+            if isinstance(imgsz, int):
+                # 整数：宽高相同
+                model.warmup(imgsz=(1 if pt else self.args.batch, self.data["channels"], imgsz, imgsz))
+            elif isinstance(imgsz, list):
+                # 列表：使用宽高 [h, w]
+                model.warmup(imgsz=(1 if pt else self.args.batch, self.data["channels"], imgsz[0], imgsz[1]))
+            else:
+                # 非法类型 → 主动报错并终止程序
+                raise TypeError(f"imgsz 必须是 int 或 list 类型，当前传入类型：{type(imgsz)}")
 
         self.run_callbacks("on_val_start")
         dt = (
