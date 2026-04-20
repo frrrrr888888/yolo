@@ -4,6 +4,7 @@ import os
 import glob
 import numpy as np
 import yaml
+import shutil
 
 
 def read_yaml_config(file_path):
@@ -169,6 +170,53 @@ def check_in(x, y, width, height):
     """
     return 0 <= x < width and 0 <= y < height
 
+def image_draw(
+    image,
+    bboxes,
+    keypoints,
+    box_color=(0, 255, 0),
+    point_color=(0, 0, 255),
+    thickness=2,
+    radius=5
+):
+    """
+    在图像上绘制 bbox 和 keypoints
+
+    参数：
+        image: 输入图像 (H, W, C)
+        bboxes: YOLO格式 [(x_c, y_c, w, h), ...] 归一化坐标
+        keypoints: [[(x, y, v), ...], ...] 归一化坐标
+        box_color: bbox颜色 (B, G, R)
+        point_color: 关键点颜色 (B, G, R)
+        thickness: bbox线宽
+        radius: 关键点半径
+
+    返回：
+        绘制后的图像
+    """
+
+    h, w = image.shape[:2]
+
+    for bbox, kp in zip(bboxes, keypoints):
+        # === bbox ===
+        x_c, y_c, bw, bh = bbox
+
+        x_min = int((x_c - bw / 2) * w)
+        y_min = int((y_c - bh / 2) * h)
+        x_max = int((x_c + bw / 2) * w)
+        y_max = int((y_c + bh / 2) * h)
+
+        cv2.rectangle(image, (x_min, y_min), (x_max, y_max), box_color, thickness)
+
+        # === keypoints ===
+        for (key_x, key_y, _) in kp:
+            px = int(key_x * w)
+            py = int(key_y * h)
+
+            cv2.circle(image, (px, py), radius, point_color, -1)
+
+    return image
+
 
 def augment_data(path):
     config = read_yaml_config(path)
@@ -190,11 +238,11 @@ def augment_data(path):
     augmentation_operations = config['augmentation_operations']
 
     if 'Affine' in augmentation_operations:
-        augmentations.append(A.Affine(  # rotate=tuple(augmentation_operations['Affine']['rotate']),
-            shear=augmentation_operations['Affine']['shear'],
-            scale=tuple(augmentation_operations['Affine']['scale']),
-            translate_percent=tuple(augmentation_operations['Affine']['translate_percent']),
-            p=augmentation_operations['Affine']['p']))
+        augmentations.append(A.Affine(shear=augmentation_operations['Affine']['shear'],
+                                      scale=tuple(augmentation_operations['Affine']['scale']),
+                                      translate_percent=tuple(augmentation_operations['Affine']['translate_percent']),
+                                      fill = tuple(augmentation_operations['Affine']['fill']),
+                                      p=augmentation_operations['Affine']['p']))
 
     if 'Perspective' in augmentation_operations:
         augmentations.append(A.Perspective(scale=tuple(augmentation_operations['Perspective']['scale']),
@@ -232,7 +280,7 @@ def augment_data(path):
             num_holes_range=augmentation_operations['CoarseDropout']['num_holes_range'],
             hole_height_range=augmentation_operations['CoarseDropout']['hole_height_range'],
             hole_width_range=augmentation_operations['CoarseDropout']['hole_width_range'],
-            fill=augmentation_operations['CoarseDropout']['fill'],
+            fill=tuple(augmentation_operations['CoarseDropout']['fill']),
             p=augmentation_operations['CoarseDropout']['p']
         ))
 
@@ -262,6 +310,9 @@ def augment_data(path):
 
         base_name = os.path.basename(img_path).replace('.png', '')
         txt_path = os.path.join(INPUT_LABEL_DIR, base_name + '.txt')
+        dst_text_path = os.path.join(OUTPUT_LABEL_DIR, base_name + '.txt')
+
+        shutil.copy(txt_path, dst_text_path)
 
         if not os.path.exists(txt_path): continue
 
@@ -294,11 +345,20 @@ def augment_data(path):
                 indexes.append(idx)  # 记录框的索引
                 keypoints.append(kp)  # 记录框的关键点
 
+            if should_draw:
+                raw_img = image_draw(
+                    image,
+                    bboxes,
+                    keypoints
+                )
+
             # 多存入一个正中心的框作为标致
             bboxes.append([0.5, 0.5, 0.1, 0.1])
             class_labels.append(0)
             indexes.append(len(indexes))  # 记录框的索引
             keypoints.append([0, 0, 0])  # 记录框的关键点
+
+            cv2.imwrite(os.path.join(OUTPUT_IMG_DIR, base_name + '.png'), raw_img)
 
         # 生成增强图
         for i in range(AUGMENT_COUNT):
@@ -337,18 +397,6 @@ def augment_data(path):
                     # Step 1: 逆归一化
                     x_c, y_c, w, h = shape_size(aug_bbox, image.shape)
                     orig_x_c, orig_y_c, orig_w, orig_h = shape_size(orig_bbox, image.shape)
-
-                    # 将坐标从归一化转换为实际像素坐标
-
-                    """x_c *= image.shape[1]
-                    y_c *= image.shape[0]
-                    w *= image.shape[1]
-                    h *= image.shape[0]
-
-                    orig_x_c *= image.shape[1]
-                    orig_y_c *= image.shape[0]
-                    orig_w *= image.shape[1]
-                    orig_h *= image.shape[0]"""
 
                     # Step 2: 计算框的四个角
                     orig_corners = calculate_corners(orig_x_c, orig_y_c, orig_w, orig_h)
@@ -396,23 +444,11 @@ def augment_data(path):
                 save_name = f"{base_name}_aug_{i}"
 
                 if should_draw:
-                    for bbox, kp in zip(aug_bboxes, augmented_keypoints):
-                        # 获取目标框的坐标：中心 (x_c, y_c) 和宽高 (w, h)
-                        x_c, y_c, w, h = bbox
-                        x_min = int((x_c - w / 2) * aug_img.shape[1])
-                        y_min = int((y_c - h / 2) * aug_img.shape[0])
-                        x_max = int((x_c + w / 2) * aug_img.shape[1])
-                        y_max = int((y_c + h / 2) * aug_img.shape[0])
-
-                        # 绘制矩形框
-                        cv2.rectangle(aug_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)  # 绿色框
-
-                        # 绘制关键点
-                        for (key_x, key_y, _) in kp:
-                            # 画一个红色的圆圈来标记关键点
-                            key_x = int(key_x * aug_img.shape[1])
-                            key_y = int(key_y * aug_img.shape[0])
-                            cv2.circle(aug_img, (key_x, key_y), 5, (0, 0, 255), -1)  # 红色圆圈
+                    aug_img = image_draw(
+                        aug_img,
+                        aug_bboxes,
+                        augmented_keypoints
+                    )
 
                 cv2.imwrite(os.path.join(OUTPUT_IMG_DIR, save_name + '.png'), aug_img)
 
@@ -435,4 +471,4 @@ def augment_data(path):
 
 
 if __name__ == "__main__":
-    augment_data(r"F:\frr\maqiaoyu\ObjectRecognition\utils\datasets_preprocess\image_agument\config\rf.yaml")
+    augment_data(r"F:\frr\try\utils\datasets_preprocess\image_agument\config\rf.yaml")

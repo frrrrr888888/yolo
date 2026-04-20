@@ -17,6 +17,7 @@ augmentation_operations:
     shear: 0.3 # 剪切角度
     scale: [0.9,1.1] #剪切规模
     translate_percent: [0.05,0.05]
+    fill: [114,114,114]
     p: 0.5  #概率
   Perspective:
     scale: [0.0, 0.005]   #投影映射
@@ -45,8 +46,8 @@ augmentation_operations:
     num_holes_range: [10, 30] #随机删除区域的数量
     hole_height_range: [8, 16] #删除区域的高度范围
     hole_width_range: [8, 16] #删除区域的宽度范围
-    fill: 114 #填充颜色
-    p: 0.3
+    fill: [114,114,114] #填充颜色
+    p: 0.5
 
 should_flip: True #是否随机翻转
 should_draw: true #保存的图片是否有关键框和关键点绘制
