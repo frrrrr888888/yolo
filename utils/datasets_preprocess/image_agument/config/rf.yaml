@@ -9,6 +9,8 @@ output_label_dir: "F:/frr/data/aug_base/aug/labels"
 # 增广次数，所有图片同样次数
 augment_count: 2
 
+#自动判断
+auto: False
 
 # 增广操作设置
 augmentation_operations:
@@ -50,7 +52,7 @@ augmentation_operations:
     p: 0.5
 
 should_flip: True #是否随机翻转
-should_draw: true #保存的图片是否有关键框和关键点绘制
+should_draw: True #保存的图片是否有关键框和关键点绘制
 flip_prob: 0.5 #随机翻转的概率
 
 

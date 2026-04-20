@@ -227,15 +227,10 @@ def augment_data(path):
     INPUT_LABEL_DIR = config['input_label_dir']
     OUTPUT_IMG_DIR = config['output_img_dir']
     OUTPUT_LABEL_DIR = config['output_label_dir']
-    AUGMENT_COUNT = config['augment_count']
 
     should_flip = config['should_flip']
     flip_prob = config['flip_prob']
     should_draw = config['should_draw']
-
-    # 构造变换操作
-    transform = build_transforms(augmentation_operations=config['augmentation_operations'],
-                                 bbox_params_config = config['bbox_params'])
 
     if not os.path.exists(OUTPUT_IMG_DIR): os.makedirs(OUTPUT_IMG_DIR)
     if not os.path.exists(OUTPUT_LABEL_DIR): os.makedirs(OUTPUT_LABEL_DIR)
@@ -299,6 +294,14 @@ def augment_data(path):
             keypoints.append([0, 0, 0])  # 记录框的关键点
 
             cv2.imwrite(os.path.join(OUTPUT_IMG_DIR, base_name + '.png'), raw_img)
+
+        # 构造变换操作
+        transform, AUGMENT_COUNT = build_transforms(augmentation_operations=config['augmentation_operations'],
+                                                    bbox_params_config=config['bbox_params'],
+                                                    a_count=config['augment_count'],
+                                                    bboexes=bboxes[:-1],
+                                                    labels=class_labels[:-1],
+                                                    auto=config['auto'])
 
         # 生成增强图
         for i in range(AUGMENT_COUNT):
