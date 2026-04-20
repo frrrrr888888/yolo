@@ -280,11 +280,14 @@ def augment_data(path):
                 indexes.append(idx)  # 记录框的索引
                 keypoints.append(kp)  # 记录框的关键点
 
+            raw_img = image.copy()
             if should_draw:
                 raw_img = image_draw(
-                    image,
+                    raw_img,
                     bboxes,
-                    keypoints
+                    keypoints,
+                    box_color=(0, 255, 0),
+                    point_color=(255, 0, 0),
                 )
 
             # 多存入一个正中心的框作为标致

@@ -10,7 +10,7 @@ output_label_dir: "F:/frr/data/aug_base/aug/labels"
 augment_count: 2
 
 #自动判断
-auto: False
+auto: True
 
 # 增广操作设置
 augmentation_operations:
