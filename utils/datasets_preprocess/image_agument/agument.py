@@ -329,13 +329,13 @@ def augment_data(path):
             cv2.imwrite(os.path.join(OUTPUT_IMG_DIR, base_name + '.png'), raw_img)
 
         # 构造变换操作
-        transform, AUGMENT_COUNT = build_transforms(augmentation_operations=config['augmentation_operations'],
-                                                    bbox_params_config=config['bbox_params'],
-                                                    a_count=config['augment_count'],
-                                                    bboexes=bboxes[:-1],
-                                                    labels=class_labels[:-1],
+        transform, AUGMENT_COUNT = build_transforms(augmentation_operations = config['augmentation_operations'],
+                                                    bbox_params_config = config['bbox_params'],
+                                                    a_count= config['augment_count'],
+                                                    bboexes = bboxes[:-1],
+                                                    labels = class_labels[:-1],
                                                     category_map = category_map,
-                                                    auto=config['auto'])
+                                                    auto = config['auto'])
 
         # 生成增强图
         for i in range(AUGMENT_COUNT):

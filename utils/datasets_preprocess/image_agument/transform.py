@@ -124,7 +124,11 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
         fill_color = tuple(augmentation_operations['Affine']['fill'])
 
         # ===== 1. 几何（核心增强，受策略控制）=====
-        if "strong_scale" in transform_list:
+        # 🔥 crop保护（关键）
+        if "protect_crop" in transform_list:
+            scale_aug = A.Affine(scale=(0.95, 1.05), fill=fill_color, p=0.5)
+
+        elif "strong_scale" in transform_list:
             scale_aug = A.Affine(scale=(1.0, 1.6), fill=fill_color, p=0.8)
 
         elif "scale" in transform_list:
@@ -132,10 +136,6 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
 
         else:
             scale_aug = A.Affine(scale=(0.9, 1.1), fill=fill_color, p=0.5)
-
-        # 🔥 crop保护（关键）
-        if "protect_crop" in transform_list:
-            scale_aug = A.Affine(scale=(0.95, 1.05), fill=fill_color, p=0.5)
 
         augmentations.append(scale_aug)
 
@@ -146,19 +146,20 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
             )
 
         # ===== 3. 密集场景 → 裁剪 =====
-        if "dense" in transform_list:
+        """if "dense" in transform_list:
             augmentations.append(
                 A.RandomCrop(height=640, width=640, p=1)
             )
-        """augmentations.append(
+        else:
+            augmentations.append(
+                A.RandomCrop(height=640, width=640, p=1)
+            )
+        augmentations.append(
             A.RandomCrop(height=640, width=640, p=1)
         )"""
 
         # ===== 4. HARD NEG（新增核心）=====
         if "hard_neg" in transform_list:
-            augmentations.append(
-                A.RandomCrop(height=640, width=640, p=1)
-            )
             # 限制颜色增强（防止破坏细节）
             color_p = 0.3
         else:
@@ -166,7 +167,7 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
 
         # ===== 5. 颜色增强 =====
         if "color" in transform_list:
-            augmentations.append(
+            '''augmentations.append(
                 A.OneOf([
                     A.HueSaturationValue(
                         hue_shift_limit=augmentation_operations['HueSaturationValue']['hue_shift_limit'],
@@ -178,7 +179,18 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
                         contrast_limit=augmentation_operations['RandomBrightnessContrast']['contrast_limit']
                     )
                 ], p=color_p)
-            )
+            )'''
+            augmentations.append(A.HueSaturationValue(
+                hue_shift_limit=augmentation_operations['HueSaturationValue']['hue_shift_limit'],
+                sat_shift_limit=augmentation_operations['HueSaturationValue']['sat_shift_limit'],
+                val_shift_limit=augmentation_operations['HueSaturationValue']['val_shift_limit'],
+                p=color_p
+            ))
+            augmentations.append(A.RandomBrightnessContrast(
+                brightness_limit=augmentation_operations['RandomBrightnessContrast']['brightness_limit'],
+                contrast_limit=augmentation_operations['RandomBrightnessContrast']['contrast_limit'],
+                p=color_p
+            ))
 
         # ===== 6. 噪声（弱化在保护场景）=====
         if "noise" in transform_list:
@@ -187,12 +199,14 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
             if "protect_crop" in transform_list:
                 noise_p = 0.2  # 🔥 降低扰动
 
-            augmentations.append(
-                A.OneOf([
-                    A.GaussNoise(std_range=augmentation_operations['GaussNoise']['std_range']),
-                    A.MotionBlur(blur_limit=augmentation_operations['MotionBlur']['blur_limit'])
-                ], p=noise_p)
-            )
+            augmentations.append(A.GaussNoise(
+                std_range=augmentation_operations['GaussNoise']['std_range'],
+                p=noise_p
+            ))
+            augmentations.append(A.MotionBlur(
+                blur_limit=augmentation_operations['MotionBlur']['blur_limit'],
+                p=noise_p
+            ))
 
         # ===== 7. 遮挡 =====
         if 'CoarseDropout' in augmentation_operations:
@@ -213,10 +227,6 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
                 )
             )
 
-        # ===== 8. 限制增强数量（避免过增强）=====
-        import random
-        if len(augmentations) > a_count:
-            augmentations = random.sample(augmentations, a_count)
 
         # ===== Compose =====
         transform = A.Compose(

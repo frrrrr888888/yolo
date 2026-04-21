@@ -7,10 +7,10 @@ output_img_dir: "F:/frr/data/aug_base/aug/images"
 output_label_dir: "F:/frr/data/aug_base/aug/labels"
 
 # 增广次数，所有图片同样次数
-augment_count: 2
+augment_count: 5
 
 #自动判断
-auto: True
+auto: False
 
 category_map:
   weed: [2]
