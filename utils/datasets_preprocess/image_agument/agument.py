@@ -1,3 +1,4 @@
+import itertools
 import random
 import cv2
 import os
@@ -6,6 +7,7 @@ import numpy as np
 import yaml
 import shutil
 from transform import *
+import re
 
 
 def read_yaml_config(file_path):
@@ -247,206 +249,274 @@ def image_draw(
 
     return image
 
+def get_dataset_paths(root_path, out_path):
+
+    """示例：
+    文件夹格式：8位日期20220101\images\train\imgs"""
+
+    INPUT_IMG_DIRS = []
+    INPUT_LABEL_DIRS = []
+    OUTPUT_IMG_DIRS = []
+    OUTPUT_LABEL_DIRS = []
+    number = []
+
+    # 匹配：8位数字开头（日期）
+    pattern = re.compile(r"^\d{8}.*")
+
+    for name in os.listdir(root_path):
+        full_path = os.path.join(root_path, name)
+        dst_path = os.path.join(out_path, name)
+
+        # 只要符合“日期开头 + 是文件夹”
+        if os.path.isdir(full_path) and pattern.match(name):
+            img_dir = os.path.join(full_path, "images", "train")
+            label_dir = os.path.join(full_path, "labels", "train")
+            out_img_dir = os.path.join(dst_path + '_aug', "images", "train")
+            out_label_dir = os.path.join(dst_path + '_aug', "labels", "train")
+
+            # 可选：判断路径是否存在
+            if os.path.exists(img_dir) and os.path.exists(label_dir):
+
+                os.makedirs(out_img_dir, exist_ok=True)
+                os.makedirs(out_label_dir, exist_ok=True)
+
+                INPUT_IMG_DIRS.append(img_dir)
+                INPUT_LABEL_DIRS.append(label_dir)
+                OUTPUT_IMG_DIRS.append(out_img_dir)
+                OUTPUT_LABEL_DIRS.append(out_label_dir)
+            else:
+                print(f"[WARNING] 缺少路径: {full_path}")
+            # 统计图片
+            imgs = [f for f in os.listdir(img_dir) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
+            labels = [f for f in os.listdir(label_dir) if f.endswith('.txt')]
+            if not len(imgs) == len(labels):
+                print(f"[WARNING] 地址，图片数量，label数量: {full_path, len(imgs), len(labels)}")
+            number.append(len(imgs))
+
+    return INPUT_IMG_DIRS, INPUT_LABEL_DIRS, OUTPUT_IMG_DIRS, OUTPUT_LABEL_DIRS, number
+
+def compute_scales(nums, max_scale=10000):
+    #计算每个数据集的方法倍数
+    if not nums:
+        return []
+
+    max_val = max(nums)
+    scales = []
+
+    if len(nums) == 1:
+        scales.append(1)
+        return scales
+
+    for x in nums:
+        if x == 0:
+            scales.append(0)
+        else:
+            scale = round(max_val / x)
+            scale = max(1, min(scale, max_scale))  # 限制范围
+            scales.append(scale)
+
+    return scales
+
 
 def augment_data(path):
     config = read_yaml_config(path)
 
     # 路径配置
-    INPUT_IMG_DIR = config['input_img_dir']
-    INPUT_LABEL_DIR = config['input_label_dir']
-    OUTPUT_IMG_DIR = config['output_img_dir']
-    OUTPUT_LABEL_DIR = config['output_label_dir']
+    data_path = config["data_path"]
+    out_path = config["out_path"]
+    INPUT_IMG_DIRS, INPUT_LABEL_DIRS, OUTPUT_IMG_DIRS, OUTPUT_LABEL_DIRS, number = get_dataset_paths(data_path, out_path)
+    scales = compute_scales(number)
 
     should_flip = config['should_flip']
     flip_prob = config['flip_prob']
     should_draw = config['should_draw']
     category_map = config['category_map']
 
-    if not os.path.exists(OUTPUT_IMG_DIR): os.makedirs(OUTPUT_IMG_DIR)
-    if not os.path.exists(OUTPUT_LABEL_DIR): os.makedirs(OUTPUT_LABEL_DIR)
+    for num, (INPUT_IMG_DIR, INPUT_LABEL_DIR, OUTPUT_IMG_DIR, OUTPUT_LABEL_DIR) in enumerate(zip(INPUT_IMG_DIRS, INPUT_LABEL_DIRS,
+                                                                                                 OUTPUT_IMG_DIRS,OUTPUT_LABEL_DIRS)):
+        scale = scales[num] - 1
+        img_paths = glob.glob(os.path.join(INPUT_IMG_DIR, '*.png'))
 
-    img_paths = glob.glob(os.path.join(INPUT_IMG_DIR, '*.png'))
+        print(f"找到 {len(img_paths)} 张图片，开始增强...")
 
-    print(f"找到 {len(img_paths)} 张图片，开始增强...")
+        for img_path in img_paths:
+            image = cv2.imread(img_path)
+            if image is None: continue
 
-    for img_path in img_paths:
-        image = cv2.imread(img_path)
-        if image is None: continue
+            base_name = os.path.basename(img_path).replace('.png', '')
+            txt_path = os.path.join(INPUT_LABEL_DIR, base_name + '.txt')
+            dst_text_path = os.path.join(OUTPUT_LABEL_DIR, base_name + '.txt')
 
-        base_name = os.path.basename(img_path).replace('.png', '')
-        txt_path = os.path.join(INPUT_LABEL_DIR, base_name + '.txt')
-        dst_text_path = os.path.join(OUTPUT_LABEL_DIR, base_name + '.txt')
+            shutil.copy(txt_path, dst_text_path)
 
-        shutil.copy(txt_path, dst_text_path)
+            if not os.path.exists(txt_path): continue
 
-        if not os.path.exists(txt_path): continue
+            bboxes = []  # 用于存储原始的所有目标框数据
+            class_labels = []
+            indexes = []  # 存储每个框的索引
+            keypoints = []  # 用于存储每个框的关键点
 
-        bboxes = []  # 用于存储原始的所有目标框数据
-        class_labels = []
-        indexes = []  # 存储每个框的索引
-        keypoints = []  # 用于存储每个框的关键点
+            with open(txt_path, 'r') as f:
+                lines = f.readlines()
+                for idx, line in enumerate(lines):
+                    data = line.strip().split()
+                    if not data: continue
 
-        with open(txt_path, 'r') as f:
-            lines = f.readlines()
-            for idx, line in enumerate(lines):
-                data = line.strip().split()
-                if not data: continue
+                    cls = int(data[0])
+                    raw_bbox = [float(x) for x in data[1:5]]  # [x_c, y_c, w, h]
+                    raw_keypoints = [float(x) for x in data[5:]]  # 关键点是后面的数据
 
-                cls = int(data[0])
-                raw_bbox = [float(x) for x in data[1:5]]  # [x_c, y_c, w, h]
-                raw_keypoints = [float(x) for x in data[5:]]  # 关键点是后面的数据
+                    x_c, y_c, w, h = clean_bbox(raw_bbox[0], raw_bbox[1], raw_bbox[2], raw_bbox[3])
 
-                x_c, y_c, w, h = clean_bbox(raw_bbox[0], raw_bbox[1], raw_bbox[2], raw_bbox[3])
+                    if w < 0.0001 or h < 0.0001: continue
 
-                if w < 0.0001 or h < 0.0001: continue
+                    # 提取关键点
+                    kp = []
+                    for i in range(0, len(raw_keypoints), 3):  # 每三个单位是一个(x, y, k_cls)
+                        kp.append((raw_keypoints[i], raw_keypoints[i + 1], raw_keypoints[i + 2]))
 
-                # 提取关键点
-                kp = []
-                for i in range(0, len(raw_keypoints), 3):  # 每三个单位是一个(x, y, k_cls)
-                    kp.append((raw_keypoints[i], raw_keypoints[i + 1], raw_keypoints[i + 2]))
+                    bboxes.append([x_c, y_c, w, h])
+                    class_labels.append(cls)
+                    indexes.append(idx)  # 记录框的索引
+                    keypoints.append(kp)  # 记录框的关键点
 
-                bboxes.append([x_c, y_c, w, h])
-                class_labels.append(cls)
-                indexes.append(idx)  # 记录框的索引
-                keypoints.append(kp)  # 记录框的关键点
+                raw_img = image.copy()
+                if should_draw:
+                    raw_img = image_draw(
+                        raw_img,
+                        bboxes,
+                        keypoints,
+                        box_color=(0, 255, 0),
+                        point_color=(255, 0, 0),
+                    )
 
-            raw_img = image.copy()
-            if should_draw:
-                raw_img = image_draw(
-                    raw_img,
-                    bboxes,
-                    keypoints,
-                    box_color=(0, 255, 0),
-                    point_color=(255, 0, 0),
-                )
+                # 多存入一个正中心的框作为标致
+                bboxes.append([0.5, 0.5, 0.1, 0.1])
+                class_labels.append(0)
+                indexes.append(len(indexes))  # 记录框的索引
+                keypoints.append([0, 0, 0])  # 记录框的关键点
 
-            # 多存入一个正中心的框作为标致
-            bboxes.append([0.5, 0.5, 0.1, 0.1])
-            class_labels.append(0)
-            indexes.append(len(indexes))  # 记录框的索引
-            keypoints.append([0, 0, 0])  # 记录框的关键点
+                cv2.imwrite(os.path.join(OUTPUT_IMG_DIR, base_name + '.png'), raw_img)
 
-            cv2.imwrite(os.path.join(OUTPUT_IMG_DIR, base_name + '.png'), raw_img)
+            # 构造变换操作
+            transform, AUGMENT_COUNT = build_transforms(augmentation_operations = config['augmentation_operations'],
+                                                        bbox_params_config = config['bbox_params'],
+                                                        a_count= scale,
+                                                        bboexes = bboxes[:-1],
+                                                        labels = class_labels[:-1],
+                                                        category_map = category_map,
+                                                        auto = config['auto'])
 
-        # 构造变换操作
-        transform, AUGMENT_COUNT = build_transforms(augmentation_operations = config['augmentation_operations'],
-                                                    bbox_params_config = config['bbox_params'],
-                                                    a_count= config['augment_count'],
-                                                    bboexes = bboxes[:-1],
-                                                    labels = class_labels[:-1],
-                                                    category_map = category_map,
-                                                    auto = config['auto'])
+            # 生成增强图
+            for i in range(AUGMENT_COUNT):
+                try:
+                    oorig_box = bboxes  # 不这么写transformed会把bboxes也更新报错
+                    transformed = transform(image=image, bboxes=bboxes, class_labels=class_labels, indexes=indexes)
+                    aug_img = transformed['image']
+                    aug_bboxes = transformed['bboxes']
+                    aug_labels = transformed['class_labels']
+                    aug_indexes = transformed['indexes']  # 获取增强后的索引信息
 
-        # 生成增强图
-        for i in range(AUGMENT_COUNT):
-            try:
-                oorig_box = bboxes  # 不这么写transformed会把bboxes也更新报错
-                transformed = transform(image=image, bboxes=bboxes, class_labels=class_labels, indexes=indexes)
-                aug_img = transformed['image']
-                aug_bboxes = transformed['bboxes']
-                aug_labels = transformed['class_labels']
-                aug_indexes = transformed['indexes']  # 获取增强后的索引信息
-
-                # 获取前后的参考框的坐标
-                x_c, y_c, w, h = shape_size(aug_bboxes[-1], image.shape)
-                orig_x_c, orig_y_c, orig_w, orig_h = shape_size(oorig_box[-1], image.shape)
-                orig_corners = calculate_corners(orig_x_c, orig_y_c, orig_w, orig_h)
-                aug_corners = calculate_corners(x_c, y_c, w, h)
-
-                # 计算变换矩阵
-                H = cv2.getPerspectiveTransform(
-                    np.float32(orig_corners),
-                    np.float32(aug_corners)
-                )
-
-                aug_bboxes = aug_bboxes[:-1]
-                aug_labels = aug_labels[:-1]
-                aug_indexes = aug_indexes[:-1]
-
-                aug_keypoints = clean_by_index(aug_indexes, keypoints)
-                oorig_box = clean_by_index(aug_indexes, oorig_box)  # 对标消去不存在目标框后的各个参数
-
-                if len(aug_bboxes) == 0: continue
-                # 根据索引获取变换后存在的目标框，并更新其关键点
-                augmented_keypoints = []
-                # 处理每一个框和关键点
-                for aug_bbox, orig_bbox, kp in zip(aug_bboxes, oorig_box, aug_keypoints):
-                    # Step 1: 逆归一化
-                    x_c, y_c, w, h = shape_size(aug_bbox, image.shape)
-                    orig_x_c, orig_y_c, orig_w, orig_h = shape_size(orig_bbox, image.shape)
-
-                    # Step 2: 计算框的四个角
+                    # 获取前后的参考框的坐标
+                    x_c, y_c, w, h = shape_size(aug_bboxes[-1], image.shape)
+                    orig_x_c, orig_y_c, orig_w, orig_h = shape_size(oorig_box[-1], image.shape)
                     orig_corners = calculate_corners(orig_x_c, orig_y_c, orig_w, orig_h)
                     aug_corners = calculate_corners(x_c, y_c, w, h)
 
-                    updated_kps = []
-                    for (x, y, k_cls) in kp:
-                        # Step 3: 逆归一化关键点坐标
-                        x = np.float64(x) * image.shape[1]  # 逆归一化 X 坐标
-                        y = np.float64(y) * image.shape[0]  # 逆归一化 Y 坐标
-
-                        keypoint = np.array([x, y, 1])
-
-                        # 如果坐标为 (0, 0)，表示关键点不可见，跳过
-                        if x == 0 and y == 0:
-                            new_x = np.float64(0)
-                            new_y = np.float64(0)
-                        else:
-                            # Step 4: 使用四个角来定位新的关键点坐标
-                            # 计算仿射矩阵或比例关系进行变换
-                            orig_corners = np.float64(orig_corners)
-                            aug_corners = np.float64(aug_corners)
-
-                            aug_keypoint = H @ keypoint
-                            new_x = aug_keypoint[0] / aug_keypoint[2]
-                            new_y = aug_keypoint[1] / aug_keypoint[2]
-
-                        # Step 5: 归一化新的关键点坐标
-                        if check_in(new_x, new_y, image.shape[1], image.shape[0]):
-                            new_x /= image.shape[1]
-                            new_y /= image.shape[0]
-                        else:  # 关键点超出范围了
-                            new_x = np.float64(0)
-                            new_y = np.float64(0)
-
-                        # 保存更新后的关键点
-                        if is_gray(aug_img,new_x,new_y):
-                            updated_kps.append((0, 0, k_cls))
-                        else:
-                            updated_kps.append((new_x, new_y, k_cls))
-                        #updated_kps.append((new_x, new_y, k_cls))
-
-                    augmented_keypoints.append(updated_kps)
-
-                aug_img, aug_bboxes, augmented_keypoints = flip_image(aug_img, aug_bboxes, augmented_keypoints,
-                                                                      should_flip, flip_prob)
-
-                # 保存增强后的图像
-                save_name = f"{base_name}_aug_{i}"
-
-                if should_draw:
-                    aug_img = image_draw(
-                        aug_img,
-                        aug_bboxes,
-                        augmented_keypoints
+                    # 计算变换矩阵
+                    H = cv2.getPerspectiveTransform(
+                        np.float32(orig_corners),
+                        np.float32(aug_corners)
                     )
 
-                cv2.imwrite(os.path.join(OUTPUT_IMG_DIR, save_name + '.png'), aug_img)
+                    aug_bboxes = aug_bboxes[:-1]
+                    aug_labels = aug_labels[:-1]
+                    aug_indexes = aug_indexes[:-1]
 
-                # 保存增强后的标签
-                with open(os.path.join(OUTPUT_LABEL_DIR, save_name + '.txt'), 'w') as f:
-                    for cls, bbox, kp in zip(aug_labels, aug_bboxes, augmented_keypoints):
-                        x_c, y_c, w, h = clean_bbox(bbox[0], bbox[1], bbox[2], bbox[3])
-                        line = f"{int(cls)} {x_c:.6f} {y_c:.6f} {w:.6f} {h:.6f}"
+                    aug_keypoints = clean_by_index(aug_indexes, keypoints)
+                    oorig_box = clean_by_index(aug_indexes, oorig_box)  # 对标消去不存在目标框后的各个参数
 
-                        # 添加关键点到标签行
-                        for (key_x, key_y, key_cls) in kp:
-                            line += f" {key_x:.6f} {key_y:.6f} {int(key_cls)}"
+                    if len(aug_bboxes) == 0: continue
+                    # 根据索引获取变换后存在的目标框，并更新其关键点
+                    augmented_keypoints = []
+                    # 处理每一个框和关键点
+                    for aug_bbox, orig_bbox, kp in zip(aug_bboxes, oorig_box, aug_keypoints):
+                        # Step 1: 逆归一化
+                        x_c, y_c, w, h = shape_size(aug_bbox, image.shape)
+                        orig_x_c, orig_y_c, orig_w, orig_h = shape_size(orig_bbox, image.shape)
 
-                        f.write(line + ' \n')
+                        # Step 2: 计算框的四个角
+                        orig_corners = calculate_corners(orig_x_c, orig_y_c, orig_w, orig_h)
+                        aug_corners = calculate_corners(x_c, y_c, w, h)
 
-            except Exception as e:
-                print(f"处理 {base_name} 增强时出错: {e}")
+                        updated_kps = []
+                        for (x, y, k_cls) in kp:
+                            # Step 3: 逆归一化关键点坐标
+                            x = np.float64(x) * image.shape[1]  # 逆归一化 X 坐标
+                            y = np.float64(y) * image.shape[0]  # 逆归一化 Y 坐标
+
+                            keypoint = np.array([x, y, 1])
+
+                            # 如果坐标为 (0, 0)，表示关键点不可见，跳过
+                            if x == 0 and y == 0:
+                                new_x = np.float64(0)
+                                new_y = np.float64(0)
+                            else:
+                                # Step 4: 使用四个角来定位新的关键点坐标
+                                # 计算仿射矩阵或比例关系进行变换
+                                orig_corners = np.float64(orig_corners)
+                                aug_corners = np.float64(aug_corners)
+
+                                aug_keypoint = H @ keypoint
+                                new_x = aug_keypoint[0] / aug_keypoint[2]
+                                new_y = aug_keypoint[1] / aug_keypoint[2]
+
+                            # Step 5: 归一化新的关键点坐标
+                            if check_in(new_x, new_y, image.shape[1], image.shape[0]):
+                                new_x /= image.shape[1]
+                                new_y /= image.shape[0]
+                            else:  # 关键点超出范围了
+                                new_x = np.float64(0)
+                                new_y = np.float64(0)
+
+                            # 保存更新后的关键点
+                            if is_gray(aug_img,new_x,new_y):
+                                updated_kps.append((0, 0, k_cls))
+                            else:
+                                updated_kps.append((new_x, new_y, k_cls))
+                            #updated_kps.append((new_x, new_y, k_cls))
+
+                        augmented_keypoints.append(updated_kps)
+
+                    aug_img, aug_bboxes, augmented_keypoints = flip_image(aug_img, aug_bboxes, augmented_keypoints,
+                                                                          should_flip, flip_prob)
+
+                    # 保存增强后的图像
+                    save_name = f"{base_name}_aug_{i}"
+
+                    if should_draw:
+                        aug_img = image_draw(
+                            aug_img,
+                            aug_bboxes,
+                            augmented_keypoints
+                        )
+
+                    cv2.imwrite(os.path.join(OUTPUT_IMG_DIR, save_name + '.png'), aug_img)
+
+                    # 保存增强后的标签
+                    with open(os.path.join(OUTPUT_LABEL_DIR, save_name + '.txt'), 'w') as f:
+                        for cls, bbox, kp in zip(aug_labels, aug_bboxes, augmented_keypoints):
+                            x_c, y_c, w, h = clean_bbox(bbox[0], bbox[1], bbox[2], bbox[3])
+                            line = f"{int(cls)} {x_c:.6f} {y_c:.6f} {w:.6f} {h:.6f}"
+
+                            # 添加关键点到标签行
+                            for (key_x, key_y, key_cls) in kp:
+                                line += f" {key_x:.6f} {key_y:.6f} {int(key_cls)}"
+
+                            f.write(line + ' \n')
+
+                except Exception as e:
+                    print(f"处理 {base_name} 增强时出错: {e}")
 
     print("增强完成！")
 
