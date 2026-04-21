@@ -171,6 +171,35 @@ def check_in(x, y, width, height):
     """
     return 0 <= x < width and 0 <= y < height
 
+def is_gray(image, x, y, tol=5):
+    """
+    判断某个点是否为接近(114,114,114)的灰色
+
+    参数：
+        image: cv2图像 (BGR)
+        x, y: 像素坐标
+        tol: 容差（默认±5）
+
+    返回：
+        True / False
+    """
+    h, w = image.shape[:2]
+
+    x *= w
+    y *= h
+
+    # 防止越界
+    if not (0 <= x < w and 0 <= y < h):
+        return False
+
+    b, g, r = image[int(y), int(x)]
+
+    return (
+        abs(int(b) - 114) <= tol and
+        abs(int(g) - 114) <= tol and
+        abs(int(r) - 114) <= tol
+    )
+
 def image_draw(
     image,
     bboxes,
@@ -231,6 +260,7 @@ def augment_data(path):
     should_flip = config['should_flip']
     flip_prob = config['flip_prob']
     should_draw = config['should_draw']
+    category_map = config['category_map']
 
     if not os.path.exists(OUTPUT_IMG_DIR): os.makedirs(OUTPUT_IMG_DIR)
     if not os.path.exists(OUTPUT_LABEL_DIR): os.makedirs(OUTPUT_LABEL_DIR)
@@ -304,6 +334,7 @@ def augment_data(path):
                                                     a_count=config['augment_count'],
                                                     bboexes=bboxes[:-1],
                                                     labels=class_labels[:-1],
+                                                    category_map = category_map,
                                                     auto=config['auto'])
 
         # 生成增强图
@@ -379,7 +410,11 @@ def augment_data(path):
                             new_y = np.float64(0)
 
                         # 保存更新后的关键点
-                        updated_kps.append((new_x, new_y, k_cls))
+                        if is_gray(aug_img,new_x,new_y):
+                            updated_kps.append((0, 0, k_cls))
+                        else:
+                            updated_kps.append((new_x, new_y, k_cls))
+                        #updated_kps.append((new_x, new_y, k_cls))
 
                     augmented_keypoints.append(updated_kps)
 
