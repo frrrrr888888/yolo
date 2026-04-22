@@ -639,4 +639,4 @@ def augment_data(path):
 
 
 if __name__ == "__main__":
-    augment_data(r"F:\frr\try\utils\datasets_preprocess\image_agument\config\rf.yaml")
+    augment_data(r"/ObjectRecognition/utils/datasets_preprocess/image_agument/config/rf.yaml")
