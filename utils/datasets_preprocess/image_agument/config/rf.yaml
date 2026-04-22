@@ -1,16 +1,15 @@
 # config.yaml
 
+# 文件路径配置
 data_path: "F:/frr/data/try_aug"
 out_path: "F:/frr/data/try_aug/augment"
-
-# 文件路径配置
-input_img_dir: "F:/frr/data/aug_base/split/images/train"
-input_label_dir: "F:/frr/data/aug_base/split/labels/train"
-output_img_dir: "F:/frr/data/aug_base/aug/images"
-output_label_dir: "F:/frr/data/aug_base/aug/labels"
-
-# 增广次数，所有图片同样次数
-augment_count: 3
+#False代表手动设置放大规模
+auto_path: True
+#文件年份，放大规模（原本1张变2张），不填的日期文件不增广
+path_scale: [
+  [20260101, 2.2],
+  [20260421, 3.4]
+]
 
 #自动判断
 auto: False
