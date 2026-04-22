@@ -3,12 +3,15 @@
 # 文件路径配置
 data_path: "F:/frr/data/try_aug"
 out_path: "F:/frr/data/try_aug/augment"
-#False代表手动设置放大规模
-auto_path: True
+#False代表手动设置放大规模,True自动匹配大小（最大的数据集默认增广2倍，以这个两倍后的对齐）
+auto_path: False
+#是否开启统一增广倍数设置(True所有数据都增广aug_scale倍)
+Unified_settings: True
+#默认增广倍数（大于1）
+aug_scale: 2.3
 #文件年份，放大规模（原本1张变2张），不填的日期文件不增广
 path_scale: [
   [20260101, 2.2],
-  [20260421, 3.4]
 ]
 
 #自动判断

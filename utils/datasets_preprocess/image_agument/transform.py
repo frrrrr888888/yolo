@@ -121,7 +121,7 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
         transform_list, a_count = decide_augmentation(bboexes, labels,category_map)
 
         augmentations = []
-        fill_color = tuple(augmentation_operations['Affine']['fill'])
+        fill_color = tuple(augmentation_operations.Affine.fill)
 
         # ===== 1. 几何（核心增强，受策略控制）=====
         # 🔥 crop保护（关键）
@@ -181,14 +181,14 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
                 ], p=color_p)
             )'''
             augmentations.append(A.HueSaturationValue(
-                hue_shift_limit=augmentation_operations['HueSaturationValue']['hue_shift_limit'],
-                sat_shift_limit=augmentation_operations['HueSaturationValue']['sat_shift_limit'],
-                val_shift_limit=augmentation_operations['HueSaturationValue']['val_shift_limit'],
+                hue_shift_limit=augmentation_operations.HueSaturationValue.hue_shift_limit,
+                sat_shift_limit=augmentation_operations.HueSaturationValue.sat_shift_limit,
+                val_shift_limit=augmentation_operations.HueSaturationValue.val_shift_limit,
                 p=color_p
             ))
             augmentations.append(A.RandomBrightnessContrast(
-                brightness_limit=augmentation_operations['RandomBrightnessContrast']['brightness_limit'],
-                contrast_limit=augmentation_operations['RandomBrightnessContrast']['contrast_limit'],
+                brightness_limit=augmentation_operations.RandomBrightnessContrast.brightness_limit,
+                contrast_limit=augmentation_operations.RandomBrightnessContrast.contrast_limit,
                 p=color_p
             ))
 
@@ -200,18 +200,18 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
                 noise_p = 0.2  # 🔥 降低扰动
 
             augmentations.append(A.GaussNoise(
-                std_range=augmentation_operations['GaussNoise']['std_range'],
+                std_range=augmentation_operations.GaussNoise.std_range,
                 p=noise_p
             ))
             augmentations.append(A.MotionBlur(
-                blur_limit=augmentation_operations['MotionBlur']['blur_limit'],
+                blur_limit=augmentation_operations.MotionBlur.blur_limit,
                 p=noise_p
             ))
 
         # ===== 7. 遮挡 =====
         if 'CoarseDropout' in augmentation_operations:
 
-            dropout_p = augmentation_operations['CoarseDropout']['p']
+            dropout_p = augmentation_operations.CoarseDropout.p
 
             # 🔥 HARD NEG时减少遮挡（保留细节）
             if "hard_neg" in transform_list:
@@ -219,10 +219,10 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
 
             augmentations.append(
                 A.CoarseDropout(
-                    num_holes_range=augmentation_operations['CoarseDropout']['num_holes_range'],
-                    hole_height_range=augmentation_operations['CoarseDropout']['hole_height_range'],
-                    hole_width_range=augmentation_operations['CoarseDropout']['hole_width_range'],
-                    fill=tuple(augmentation_operations['CoarseDropout']['fill']),
+                    num_holes_range=augmentation_operations.CoarseDropout.num_holes_range,
+                    hole_height_range=augmentation_operations.CoarseDropout.hole_height_range,
+                    hole_width_range=augmentation_operations.CoarseDropout.hole_width_range,
+                    fill=tuple(augmentation_operations.CoarseDropout.fill),
                     p=dropout_p
                 )
             )
@@ -232,64 +232,64 @@ def build_transforms(augmentation_operations, bbox_params_config, a_count, bboex
         transform = A.Compose(
             augmentations,
             bbox_params=A.BboxParams(
-                format=bbox_params_config['format'],
-                min_visibility=bbox_params_config['min_visibility'],
-                label_fields=bbox_params_config['label_fields']
+                format=bbox_params_config.format,
+                min_visibility=bbox_params_config.min_visibility,
+                label_fields=bbox_params_config.abel_fields
             )
         )
         print("增加张数：",a_count)
         return transform, a_count
     else:
         if 'Affine' in augmentation_operations:
-            augmentations.append(A.Affine(shear=augmentation_operations['Affine']['shear'],
-                                          scale=tuple(augmentation_operations['Affine']['scale']),
-                                          translate_percent=tuple(augmentation_operations['Affine']['translate_percent']),
-                                          fill = tuple(augmentation_operations['Affine']['fill']),
-                                          p=augmentation_operations['Affine']['p']))
+            augmentations.append(A.Affine(shear=augmentation_operations.Affine.shear,
+                                          scale=tuple(augmentation_operations.Affine.scale),
+                                          translate_percent=tuple(augmentation_operations.Affine.translate_percent),
+                                          fill = tuple(augmentation_operations.Affine.fill),
+                                          p=augmentation_operations.Affine.p))
 
         if 'Perspective' in augmentation_operations:
-            augmentations.append(A.Perspective(scale=tuple(augmentation_operations['Perspective']['scale']),
-                                               p=augmentation_operations['Perspective']['p']))
+            augmentations.append(A.Perspective(scale=tuple(augmentation_operations.Perspective.scale),
+                                               p=augmentation_operations.Perspective.p))
 
         if 'RandomBrightnessContrast' in augmentation_operations:
             augmentations.append(A.RandomBrightnessContrast(
-                brightness_limit=augmentation_operations['RandomBrightnessContrast']['brightness_limit'],
-                contrast_limit=augmentation_operations['RandomBrightnessContrast']['contrast_limit'],
-                p=augmentation_operations['RandomBrightnessContrast']['p']
+                brightness_limit=augmentation_operations.RandomBrightnessContrast.brightness_limit,
+                contrast_limit=augmentation_operations.RandomBrightnessContrast.contrast_limit,
+                p=augmentation_operations.RandomBrightnessContrast.p
             ))
         if 'HueSaturationValue' in augmentation_operations:
             augmentations.append(A.HueSaturationValue(
-                hue_shift_limit=augmentation_operations['HueSaturationValue']['hue_shift_limit'],
-                sat_shift_limit=augmentation_operations['HueSaturationValue']['sat_shift_limit'],
-                val_shift_limit=augmentation_operations['HueSaturationValue']['val_shift_limit'],
-                p=augmentation_operations['HueSaturationValue']['p']
+                hue_shift_limit=augmentation_operations.HueSaturationValue.hue_shift_limit,
+                sat_shift_limit=augmentation_operations.HueSaturationValue.sat_shift_limit,
+                val_shift_limit=augmentation_operations.HueSaturationValue.val_shift_limit,
+                p=augmentation_operations.HueSaturationValue.p
             ))
         if 'GaussNoise' in augmentation_operations:
             augmentations.append(A.GaussNoise(
-                std_range=augmentation_operations['GaussNoise']['std_range'],
-                p=augmentation_operations['GaussNoise']['p']
+                std_range=augmentation_operations.GaussNoise.std_range,
+                p=augmentation_operations.GaussNoise.p
             ))
         if 'MotionBlur' in augmentation_operations:
             augmentations.append(A.MotionBlur(
-                blur_limit=augmentation_operations['MotionBlur']['blur_limit'],
-                p=augmentation_operations['MotionBlur']['p']
+                blur_limit=augmentation_operations.MotionBlur.blur_limit,
+                p=augmentation_operations.MotionBlur.p
             ))
         if 'CoarseDropout' in augmentation_operations:
             augmentations.append(A.CoarseDropout(
-                num_holes_range=augmentation_operations['CoarseDropout']['num_holes_range'],
-                hole_height_range=augmentation_operations['CoarseDropout']['hole_height_range'],
-                hole_width_range=augmentation_operations['CoarseDropout']['hole_width_range'],
-                fill=tuple(augmentation_operations['CoarseDropout']['fill']),
-                p=augmentation_operations['CoarseDropout']['p']
+                num_holes_range=augmentation_operations.CoarseDropout.num_holes_range,
+                hole_height_range=augmentation_operations.CoarseDropout.hole_height_range,
+                hole_width_range=augmentation_operations.CoarseDropout.hole_width_range,
+                fill=tuple(augmentation_operations.CoarseDropout.fill),
+                p=augmentation_operations.CoarseDropout.p
             ))
 
         # 合并成一个变换操作
         transform = A.Compose(
             augmentations,
             bbox_params=A.BboxParams(
-                format=bbox_params_config['format'],  # 从配置文件加载格式
-                min_visibility=bbox_params_config['min_visibility'],  # 最小可见度
-                label_fields=bbox_params_config['label_fields']
+                format=bbox_params_config.format,  # 从配置文件加载格式
+                min_visibility=bbox_params_config.min_visibility,  # 最小可见度
+                label_fields=bbox_params_config.label_fields
             )
         )
 

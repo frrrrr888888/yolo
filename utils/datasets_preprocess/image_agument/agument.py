@@ -10,34 +10,51 @@ from transform import *
 import re
 import math
 
+class DotDict(dict):
+    """A dictionary that supports dot notation as well as dictionary access notation."""
 
-def read_yaml_config(file_path):
+    def __init__(self, *args, **kwargs):
+        super(DotDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+
+    @staticmethod
+    def from_dict(data):
+        """Recursively converts nested dictionaries to DotDicts."""
+        if isinstance(data, dict):
+            return DotDict({k: DotDict.from_dict(v) for k, v in data.items()})
+        elif isinstance(data, list):
+            return [DotDict.from_dict(i) for i in data]
+        else:
+            return data
+
+def yaml_load(file='data.yaml', append_filename=False):
     """
-    读取YAML配置文件
+    Load YAML data from a file.
 
     Args:
-        file_path: YAML文件路径
+        file (str, optional): File name. Default is 'data.yaml'.
+        append_filename (bool): Add the YAML filename to the YAML dictionary. Default is False.
 
     Returns:
-        dict: 配置字典
+        dict: YAML data and file name.
     """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            config = yaml.safe_load(file)
+    with open(file, errors='ignore', encoding='utf-8') as f:
+        s = f.read()  # string
 
-        print("✅ YAML文件加载成功")
-        return config
+        # Remove special characters
+        if not s.isprintable():
+            s = re.sub(r'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010ffff]+', '', s)
 
-    except FileNotFoundError:
-        print(f"❌ 文件未找到: {file_path}")
-        return {}
-    except yaml.YAMLError as e:
-        print(f"❌ YAML解析错误: {e}")
-        return {}
-    except Exception as e:
-        print(f"❌ 读取文件时出错: {e}")
-        return {}
+        # Add YAML filename to dict and return
+        return {**yaml.safe_load(s), 'yaml_file': str(file)} if append_filename else yaml.safe_load(s)
 
+def yaml2dotdict(yaml_file, key=False):
+    config = yaml_load(yaml_file)
+    if key:
+        dot_data = DotDict.from_dict(config[key])
+    else:
+        dot_data = DotDict.from_dict(config)
+    return dot_data
 
 def clean_bbox(x_c, y_c, w, h):
     """
@@ -60,7 +77,6 @@ def clean_bbox(x_c, y_c, w, h):
 
     return x_c_new, y_c_new, w_new, h_new
 
-
 def calculate_corners(x_c, y_c, w, h):
     """
     计算框的四个角坐标
@@ -72,12 +88,10 @@ def calculate_corners(x_c, y_c, w, h):
     bottom_right = (x_c + w / 2, y_c + h / 2)
     return np.array([top_left, top_right, bottom_left, bottom_right])
 
-
 def clean_by_index(index, keypoints):
     # 使用 index 中的下标来过滤 keypoints，先将 index 中的 float 转换为 int
     cleaned_keypoints = [keypoints[int(i)] for i in index if int(i) < len(keypoints)]
     return cleaned_keypoints
-
 
 def flip_image(image, bboxes, keypoints, should_flip=True, flip_prob=0.5):
     """
@@ -149,7 +163,6 @@ def flip_image(image, bboxes, keypoints, should_flip=True, flip_prob=0.5):
 
     return flipped_image, flipped_bboxes, flipped_keypoints
 
-
 def shape_size(list0, size):
     x, y, w, h = list0
 
@@ -159,7 +172,6 @@ def shape_size(list0, size):
     h *= size[0]
 
     return [x, y, w, h]
-
 
 def check_in(x, y, width, height):
     """
@@ -318,24 +330,30 @@ def compute_scales(nums, max_scale=10000):
 
     return scales
 
-def match_scales(paths, date_scale_list):
-    date_to_scale = {str(d): s for d, s in date_scale_list}
+def match_scales(paths, date_scale_list=None, aug_scale=1):
+
     result = []
 
-    for p in paths:
-        parts = p.replace("\\", "/").split("/")  # 兼容Windows路径
+    if date_scale_list is None:
+        for _ in paths:
+            result.append(aug_scale)
+    else:
+        date_to_scale = {str(d): s for d, s in date_scale_list}
 
-        scale = 0
+        for p in paths:
+            parts = p.replace("\\", "/").split("/")  # 兼容Windows路径
 
-        if len(parts) >= 3:
-            folder_name = parts[-3]   #  20260101_xxx/images/tain
-            date_prefix = folder_name[:8]  #  20260101
+            scale = 0
 
-            scale = date_to_scale.get(date_prefix, 1)
-            if scale < 1:
-                raise ValueError(f"❌ scale < 1: {scale}, path: {p}")
+            if len(parts) >= 3:
+                folder_name = parts[-3]   #  20260101_xxx/images/tain
+                date_prefix = folder_name[:8]  #  20260101
 
-        result.append(scale)
+                scale = date_to_scale.get(date_prefix, aug_scale)
+                if scale < 1:
+                    raise ValueError(f"❌ scale < 1: {scale}, path: {p}")
+
+            result.append(scale)
 
     return result
 
@@ -503,28 +521,30 @@ def generate_scale_list(scales, n):
 
     return result
 
-
 def augment_data(path):
-    config = read_yaml_config(path)
+    config = yaml2dotdict(path)
 
     # 路径配置
-    data_path = config["data_path"]
-    out_path = config["out_path"]
+    data_path = config.data_path
+    out_path = config.out_path
     INPUT_IMG_DIRS, INPUT_LABEL_DIRS, OUTPUT_IMG_DIRS, OUTPUT_LABEL_DIRS, number = get_dataset_paths(data_path, out_path)
-    auto_path = config["auto_path"]
-    auto = config["auto"]
+    auto_path = config.auto_path
+    auto = config.auto
     if auto_path:
         scales = compute_scales(number)
     else:
-        path_scale = config["path_scale"]
-        scales = match_scales(INPUT_IMG_DIRS, path_scale)
+        aug_scale = config.aug_scale
+        if config.Unified_settings:
+            scales = match_scales(INPUT_IMG_DIRS,aug_scale=aug_scale)
+        else:
+            path_scale = config.path_scale
+            scales = match_scales(INPUT_IMG_DIRS, path_scale)
+            #scales = match_scales(INPUT_IMG_DIRS, path_scale, aug_scale)
 
-
-
-    should_flip = config['should_flip']
-    flip_prob = config['flip_prob']
-    should_draw = config['should_draw']
-    category_map = config['category_map']
+    should_flip = config.should_flip
+    flip_prob = config.flip_prob
+    should_draw = config.should_draw
+    category_map = config.category_map
 
     for num, (INPUT_IMG_DIR, INPUT_LABEL_DIR, OUTPUT_IMG_DIR, OUTPUT_LABEL_DIR) in enumerate(zip(INPUT_IMG_DIRS, INPUT_LABEL_DIRS,
                                                                                                  OUTPUT_IMG_DIRS,OUTPUT_LABEL_DIRS)):
@@ -599,8 +619,8 @@ def augment_data(path):
                 cv2.imwrite(os.path.join(OUTPUT_IMG_DIR, base_name + '.png'), raw_img)
 
             # 构造变换操作
-            transform, AUGMENT_COUNT = build_transforms(augmentation_operations = config['augmentation_operations'],
-                                                        bbox_params_config = config['bbox_params'],
+            transform, AUGMENT_COUNT = build_transforms(augmentation_operations = config.augmentation_operations,
+                                                        bbox_params_config = config.bbox_params,
                                                         a_count= scale_list[number_images],
                                                         bboexes = bboxes[:-1],
                                                         labels = class_labels[:-1],
