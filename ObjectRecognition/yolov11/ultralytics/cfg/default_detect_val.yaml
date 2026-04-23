@@ -9,7 +9,7 @@ task: detect # (str) YOLO task, i.e. detect, segment, classify, pose, obb
 mode: val # (str) YOLO mode, i.e. train, val, predict, export, track, benchmark
 
 # 是否自定义save_dir
-save_dir: C:\Maqiaoyu\Code\python\TaoteAIAlgorithm_Project
+save_dir: F:\frr\try\ObjectRecognition\yolov11
 save_dir_name: runs # 在save_dir中创建名为save_dir_name的文件夹，存放在其中
 
 
@@ -20,9 +20,9 @@ epochs: 100 # (int) number of epochs to train for
 time: # (float, optional) max hours to train; overrides epochs if set
 patience: 100 # (int) early stop after N epochs without val improvement
 #batch: 16 # (int) batch size; use -1 for AutoBatch
-batch: 1 # (int) batch size; use -1 for AutoBatch
+batch: 4 # (int) batch size; use -1 for AutoBatch
 #imgsz: 1536 # (int | list) train/val use int (square); predict/export may use [h,w]
-imgsz: 2300 # (int | list) train/val use int (square); predict/export may use [h,w]
+imgsz: [416,640] # (int | list) train/val use int (square); predict/export may use [h,w]
 #imgsz: 640 # (int | list) train/val use int (square); predict/export may use [h,w]
 save: True # (bool) save train checkpoints and predict results
 save_period: -1 # (int) save checkpoint every N epochs; disabled if < 1
