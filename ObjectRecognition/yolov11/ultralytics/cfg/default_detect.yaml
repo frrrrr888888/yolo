@@ -20,6 +20,7 @@ time: # (float, optional) max hours to train; overrides epochs if set
 patience: 100 # (int) early stop after N epochs without val improvement
 #batch: 16 # (int) batch size; use -1 for AutoBatch
 batch: 4 # (int) batch size; use -1 for AutoBatch
+#imgsz: 640 # (int | list) train/val use int (square); predict/export may use [h,w]
 imgsz: [416,640] # (int | list) train/val use int (square); predict/export may use [h,w]
 save: True # (bool) save train checkpoints and predict results
 save_period: -1 # (int) save checkpoint every N epochs; disabled if < 1
@@ -43,7 +44,7 @@ resume: False # (bool) resume training from last checkpoint in the run dir
 amp: True # (bool) Automatic Mixed Precision (AMP) training; True runs AMP capability check
 fraction: 1.0 # (float) fraction of training dataset to use (1.0 = all)
 profile: False # (bool) profile ONNX/TensorRT speeds during training for loggers
-freeze: 0 # (int | list, optional) freeze first N layers (int) or specific layer indices (list)
+freeze: 23 # (int | list, optional) freeze first N layers (int) or specific layer indices (list)
 multi_scale: False # (bool) multiscale training by varying image size
 compile: False # (bool | str) enable torch.compile() backend='inductor'; True="default", False=off, or "default|reduce-overhead|max-autotune-no-cudagraphs"
 
@@ -103,17 +104,17 @@ workspace: # (float, optional) engine (TensorRT) only; workspace size in GiB, e.
 nms: False # (bool) fuse NMS into exported model when backend supports; if True, conf/iou apply (agnostic_nms except coreml)
 
 # Hyperparameters ------------------------------------------------------------------------------------------------------
-lr0: 0.01 # (float) initial learning rate (SGD=1e-2, Adam/AdamW=1e-3)
+lr0: 0.006 # (float) initial learning rate (SGD=1e-2, Adam/AdamW=1e-3)
 lrf: 0.01 # (float) final LR fraction; final LR = lr0 * lrf
 momentum: 0.937 # (float) SGD momentum or Adam beta1
-weight_decay: 0.0005 # (float) weight decay (L2 regularization)
+weight_decay: 0.0001 # (float) weight decay (L2 regularization)
 warmup_epochs: 3.0 # (float) warmup epochs (fractions allowed)
 warmup_momentum: 0.8 # (float) initial momentum during warmup
 warmup_bias_lr: 0.1 # (float) bias learning rate during warmup
 box: 7.5 # (float) box loss gain
-cls: 0.5 # (float) classification loss gain
+cls: 0.3 # (float) classification loss gain
 dfl: 1.5 # (float) distribution focal loss gain
-pose: 12.0 # (float) pose loss gain (pose tasks)
+pose: 14.0 # (float) pose loss gain (pose tasks)
 kobj: 1.0 # (float) keypoint objectness loss gain (pose tasks)
 nbs: 64 # (int) nominal batch size used for loss normalization
 hsv_h: 0.015 # (float) HSV hue augmentation fraction
@@ -131,7 +132,7 @@ flipud: 0.5 # (float) vertical flip probability
 fliplr: 0.5 # (float) horizontal flip probability
 bgr: 0.0 # (float) RGB↔BGR channel swap probability
 #mosaic: 1.0 # (float) mosaic augmentation probability
-mosaic: 0.0 # (float) mosaic augmentation probability
+mosaic: 1.0 # (float) mosaic augmentation probability
 mixup: 0.0 # (float) MixUp augmentation probability
 cutmix: 0.0 # (float) CutMix augmentation probability
 copy_paste: 0.0 # (float) segmentation copy-paste probability

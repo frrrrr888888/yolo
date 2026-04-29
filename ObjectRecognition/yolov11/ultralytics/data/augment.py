@@ -665,8 +665,8 @@ class Mosaic(BaseMixTransform):
         final_labels["img"] = img3[-self.border[0] : self.border[0], -self.border[1] : self.border[1]]
         return final_labels
 
-    def _mosaic4(self, labels: dict[str, Any]) -> dict[str, Any]:
-        """
+    """def _mosaic4(self, labels: dict[str, Any]) -> dict[str, Any]:
+        
         Create a 2x2 image mosaic from four input images.
 
         This method combines four images into a single mosaic image by placing them in a 2x2 grid. It also
@@ -688,7 +688,7 @@ class Mosaic(BaseMixTransform):
             ... }
             >>> result = mosaic._mosaic4(labels)
             >>> assert result["img"].shape == (1280, 1280, 3)
-        """
+        
         mosaic_labels = []
         s = self.imgsz
         yc, xc = (int(random.uniform(-x, 2 * s + x)) for x in self.border)  # mosaic center x, y
@@ -698,7 +698,7 @@ class Mosaic(BaseMixTransform):
             img = labels_patch["img"]
             h, w = labels_patch.pop("resized_shape")
 
-            # Place img in img4
+    # Place img in img4
             if i == 0:  # top left
                 img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
                 x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc  # xmin, ymin, xmax, ymax (large image)
@@ -721,6 +721,72 @@ class Mosaic(BaseMixTransform):
             mosaic_labels.append(labels_patch)
         final_labels = self._cat_labels(mosaic_labels)
         final_labels["img"] = img4
+        return final_labels"""
+
+    def _mosaic4(self, labels: dict[str, Any]) -> dict[str, Any]:
+        mosaic_labels = []
+
+        s = self.imgsz
+
+        # --- 兼容 imgsz 为 int 或 list ---
+        if isinstance(s, (list, tuple)):
+            h, w = s
+        else:
+            h, w = s, s
+
+        # --- border 也做兼容 ---
+        if isinstance(self.border, (list, tuple)):
+            border_y, border_x = self.border
+        else:
+            border_y = border_x = self.border
+
+        # --- 随机中心点 ---
+        yc = int(random.uniform(-border_y, 2 * h + border_y))
+        xc = int(random.uniform(-border_x, 2 * w + border_x))
+
+        for i in range(4):
+            labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
+
+            # --- 取图 ---
+            img = labels_patch["img"]
+            ph, pw = labels_patch.pop("resized_shape")  # patch h, w
+
+            # --- 初始化大图 ---
+            if i == 0:
+                img4 = np.full((h * 2, w * 2, img.shape[2]), 114, dtype=np.uint8)
+
+            # --- 放置 ---
+            if i == 0:  # top left
+                x1a, y1a, x2a, y2a = max(xc - pw, 0), max(yc - ph, 0), xc, yc
+                x1b, y1b, x2b, y2b = pw - (x2a - x1a), ph - (y2a - y1a), pw, ph
+
+            elif i == 1:  # top right
+                x1a, y1a, x2a, y2a = xc, max(yc - ph, 0), min(xc + pw, w * 2), yc
+                x1b, y1b, x2b, y2b = 0, ph - (y2a - y1a), min(pw, x2a - x1a), ph
+
+            elif i == 2:  # bottom left
+                x1a, y1a, x2a, y2a = max(xc - pw, 0), yc, xc, min(h * 2, yc + ph)
+                x1b, y1b, x2b, y2b = pw - (x2a - x1a), 0, pw, min(y2a - y1a, ph)
+
+            elif i == 3:  # bottom right
+                x1a, y1a, x2a, y2a = xc, yc, min(xc + pw, w * 2), min(h * 2, yc + ph)
+                x1b, y1b, x2b, y2b = 0, 0, min(pw, x2a - x1a), min(y2a - y1a, ph)
+
+            # --- 拼接 ---
+            img4[y1a:y2a, x1a:x2a] = img[y1b:y2b, x1b:x2b]
+
+            # --- 偏移 ---
+            padw = x1a - x1b
+            padh = y1a - y1b
+
+            # --- 更新标签 ---
+            labels_patch = self._update_labels(labels_patch, padw, padh)
+            mosaic_labels.append(labels_patch)
+
+        # --- 合并 ---
+        final_labels = self._cat_labels(mosaic_labels)
+        final_labels["img"] = img4
+
         return final_labels
 
     def _mosaic9(self, labels: dict[str, Any]) -> dict[str, Any]:
@@ -822,8 +888,8 @@ class Mosaic(BaseMixTransform):
         labels["instances"].add_padding(padw, padh)
         return labels
 
-    def _cat_labels(self, mosaic_labels: list[dict[str, Any]]) -> dict[str, Any]:
-        """
+    """def _cat_labels(self, mosaic_labels: list[dict[str, Any]]) -> dict[str, Any]:
+        
         Concatenate and process labels for mosaic augmentation.
 
         This method combines labels from multiple images used in mosaic augmentation, clips instances to the
@@ -848,7 +914,7 @@ class Mosaic(BaseMixTransform):
             >>> result = mosaic._cat_labels(mosaic_labels)
             >>> print(result.keys())
             dict_keys(['im_file', 'ori_shape', 'resized_shape', 'cls', 'instances', 'mosaic_border'])
-        """
+        
         if not mosaic_labels:
             return {}
         cls = []
@@ -871,6 +937,49 @@ class Mosaic(BaseMixTransform):
         final_labels["cls"] = final_labels["cls"][good]
         if "texts" in mosaic_labels[0]:
             final_labels["texts"] = mosaic_labels[0]["texts"]
+        return final_labels"""
+
+    def _cat_labels(self, mosaic_labels: list[dict[str, Any]]) -> dict[str, Any]:
+        if not mosaic_labels:
+            return {}
+
+        cls = []
+        instances = []
+
+        # --- 兼容 imgsz 为 int 或 list ---
+        if isinstance(self.imgsz, (list, tuple)):
+            h, w = self.imgsz
+        else:
+            h, w = self.imgsz, self.imgsz
+
+        mh, mw = 2 * h, 2 * w  # mosaic 尺寸
+
+        # --- 收集 ---
+        for labels in mosaic_labels:
+            cls.append(labels["cls"])
+            instances.append(labels["instances"])
+
+        # --- 拼接 ---
+        final_labels = {
+            "im_file": mosaic_labels[0]["im_file"],
+            "ori_shape": mosaic_labels[0]["ori_shape"],
+            "resized_shape": (mh, mw),  # ✅ 正确矩形尺寸
+            "cls": np.concatenate(cls, 0),
+            "instances": Instances.concatenate(instances, axis=0),
+            "mosaic_border": self.border,
+        }
+
+        # --- clip（关键：必须用 h,w 分开） ---
+        final_labels["instances"].clip(mh, mw)
+
+        # --- 删除无效框 ---
+        good = final_labels["instances"].remove_zero_area_boxes()
+        final_labels["cls"] = final_labels["cls"][good]
+
+        # --- texts（如果有） ---
+        if "texts" in mosaic_labels[0]:
+            final_labels["texts"] = mosaic_labels[0]["texts"]
+
         return final_labels
 
 
