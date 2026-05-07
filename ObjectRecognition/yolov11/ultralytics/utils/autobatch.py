@@ -63,6 +63,15 @@ def autobatch(
     Returns:
         (int): The optimal batch size.
     """
+    #check imgsz type
+    if isinstance(imgsz, (list, tuple)):
+        if len(imgsz) != 2:
+            raise ValueError(f"imgsz list/tuple must have length 2, got {imgsz}")
+        h, w = imgsz
+    else:
+        h = w = imgsz
+
+
     # Check device
     prefix = colorstr("AutoBatch: ")
     LOGGER.info(f"{prefix}Computing optimal batch size for imgsz={imgsz} at {fraction * 100}% CUDA memory utilization.")
@@ -87,7 +96,8 @@ def autobatch(
     # Profile batch sizes
     batch_sizes = [1, 2, 4, 8, 16] if t < 16 else [1, 2, 4, 8, 16, 32, 64]
     try:
-        img = [torch.empty(b, 3, imgsz, imgsz) for b in batch_sizes]
+        #img = [torch.empty(b, 3, imgsz, imgsz) for b in batch_sizes]
+        img = [torch.empty(b, 3, h, w) for b in batch_sizes]
         results = profile_ops(img, model, n=1, device=device, max_num_obj=max_num_obj)
 
         # Fit a solution
