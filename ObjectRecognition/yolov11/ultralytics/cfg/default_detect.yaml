@@ -104,11 +104,11 @@ workspace: # (float, optional) engine (TensorRT) only; workspace size in GiB, e.
 nms: False # (bool) fuse NMS into exported model when backend supports; if True, conf/iou apply (agnostic_nms except coreml)
 
 # Hyperparameters ------------------------------------------------------------------------------------------------------
-lr0: 0.006 # (float) initial learning rate (SGD=1e-2, Adam/AdamW=1e-3)
-lrf: 0.001 # (float) final LR fraction; final LR = lr0 * lrf
+lr0: 0.01 # (float) initial learning rate (SGD=1e-2, Adam/AdamW=1e-3)
+lrf: 0.01 # (float) final LR fraction; final LR = lr0 * lrf
 momentum: 0.937 # (float) SGD momentum or Adam beta1
-weight_decay: 0.0001 # (float) weight decay (L2 regularization)
-warmup_epochs: 10.0 # (float) warmup epochs (fractions allowed)
+weight_decay: 0.01 # (float) weight decay (L2 regularization)
+warmup_epochs: 3.0 # (float) warmup epochs (fractions allowed)
 warmup_momentum: 0.8 # (float) initial momentum during warmup
 warmup_bias_lr: 0.1 # (float) bias learning rate during warmup
 box: 7.5 # (float) box loss gain
