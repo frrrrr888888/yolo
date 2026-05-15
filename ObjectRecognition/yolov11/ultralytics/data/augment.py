@@ -2653,7 +2653,7 @@ class RandomLoadText:
         return labels
 
 
-def v8_transforms(dataset, imgsz: int, hyp: IterableSimpleNamespace, stretch: bool = False):
+def v8_transforms(dataset, imgsz , hyp: IterableSimpleNamespace, stretch: bool = False):
     """
     Apply a series of image transformations for training.
 
@@ -2677,6 +2677,13 @@ def v8_transforms(dataset, imgsz: int, hyp: IterableSimpleNamespace, stretch: bo
         >>> transforms = v8_transforms(dataset, imgsz=640, hyp=hyp)
         >>> augmented_data = transforms(dataset[0])
     """
+
+    # --- 兼容 imgsz 为 int 或 list ---
+    if isinstance(imgsz, (list, tuple)):
+        h, w = imgsz
+    else:
+        h, w = imgsz, imgsz
+    #print("看这里",stretch)
     mosaic = Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic)
     affine = RandomPerspective(
         degrees=hyp.degrees,
@@ -2684,7 +2691,8 @@ def v8_transforms(dataset, imgsz: int, hyp: IterableSimpleNamespace, stretch: bo
         scale=hyp.scale,
         shear=hyp.shear,
         perspective=hyp.perspective,
-        pre_transform=None if stretch else LetterBox(new_shape=(imgsz, imgsz)),
+        #pre_transform=None if stretch else LetterBox(new_shape=(imgsz, imgsz)),
+        pre_transform=None if stretch else LetterBox(new_shape=(h, w)),
     )
 
     pre_transform = Compose([mosaic, affine])
